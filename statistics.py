@@ -14,8 +14,21 @@ import plotly
 import datetime
 import numpy
 import pickle
+import json
+import pandas
+import math
+from statsmodels.stats.stattools import (omni_normtest, jarque_bera,
+                                         durbin_watson, _medcouple_1d, medcouple,
+                                         robust_kurtosis, robust_skewness)
+
 
 def peak_detection(list,type):
+    """
+
+    :param list: list of consecutive timestamps, usualyy five, defining the window were the peakdetection is peformes
+    :param type:
+    :return:
+    """
     dictData = {}
     mediumSuspect = []
     highSuspect =[]
@@ -27,7 +40,7 @@ def peak_detection(list,type):
     for i in range(0, len(list), 1):
         date = datetime.datetime.fromtimestamp(list[i]).strftime('%Y-%m-%d')
         try:
-            with open(type+'_snaps/'+type+'_nb_dict_snapshot_'+ date +'.txt', 'rb') as handle:
+            with open('AS_snaps/'+type+'_nb_dict_snapshot_' + date + '.pickle', 'rb') as handle:
                 dict = pickle.load(handle)
         except IOError, e:
             return
@@ -52,16 +65,16 @@ def peak_detection(list,type):
         data = dictData[key]
         deviation = numpy.std(data)
 
-        if deviation > 30 and deviation < 50:
+        if deviation > 22.24 and deviation < 40.19:
             mediumSuspect.append(key)
 
-        elif deviation >= 50:
+        elif deviation >= 40.19:
             highSuspect.append(key)
 
     for i in range(0, len(list), 1):
         date = datetime.datetime.fromtimestamp(list[i]).strftime('%Y-%m-%d')
         try:
-            with open(type+'_snaps/'+type+'_ip_dict_snapshot_'+ date +'.txt', 'rb') as handle:
+            with open(type+'_snaps/'+type+'_ip_dict_snapshot_'+ date +'.pickle', 'rb') as handle:
                 snap = pickle.load(handle)
         except IOError, e:
             print e
@@ -86,9 +99,10 @@ def peak_detection(list,type):
     # Find the respective ip-addresses owned by the suspected AS or Organization
 
 
+
 # Calculate the average connection time of the peers
-def conntime_mean(date):
-    connResults = open("ConnectionResults.txt","r+")
+def conntime_mean(date,honeyNodeLocation):
+    connResults = open(honeyNodeLocation+"/ConnectionResults.txt","r+")
     connections = []
     if date == 'x':
         for line in connResults:
@@ -111,9 +125,9 @@ def conntime_mean(date):
         mean = sum(connections, datetime.timedelta()) / len(connections)
     return mean
 
-def connection_number(date):
+def connection_number(date,honeyNodeLocation):
     connNb = 0
-    connResults = open("ConnectionResults.txt", "r+")
+    connResults = open(honeyNodeLocation+"/ConnectionResults.txt", "r+")
     for line in connResults:
         if date in line:
             connNb += 1
@@ -146,24 +160,21 @@ def rtt_mean(date):
 
 def stdev_AS_mean():
     dictData = {}
-    index = 481
-    iterations = 481 / 2
-    stdev = []
-    time = 1477742400
+    stdDataSet = []
+    time = 1479556800 # 19 oct 2016
+    window = 5
+    stdList = {}
 
-    for i in range(1, iterations, 1):
+    while 1:
         date = datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d')
-        index = index - 2
         try:
-            with open('AS_snaps/AS_dict_snapshot_' + date + '_' + str(index) + '.txt', 'rb') as handle:
+            with open('AS_snaps/AS_nb_dict_snapshot_' + date + '.pickle', 'rb') as handle:
                 dict = pickle.load(handle)
         except IOError, e:
-            time = time + 86400
-            date = datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d')
-            with open('AS_snaps/AS_dict_snapshot_' + date + '_' + str(index) + '.txt', 'rb') as handle:
-                dict = pickle.load(handle)
+            print e
+            break
 
-        print str(i * 100 / iterations) + '%'
+        time = time+86400
 
         for key in dict:
             value = dict[key]
@@ -172,26 +183,45 @@ def stdev_AS_mean():
             else:
                 dictData[key] = []
                 dictData[key].append(value)
-
+    tot =0
     for key in dictData:
-        value = dictData[key]
-        if numpy.mean(value) > 100:
+        values = dictData[key]
+        if (numpy.mean(values) > 100) or ((max(values) - min(values)) > 40):
+            stdList[key] = []
+            for index in range(0,len(values)-window-1,1):
+                stdList[key].append(numpy.std(values[index:index+window]))
+                stdDataSet.append(numpy.std(values[index:index+window]))
+                tot =tot+1
+            q75, q25 = numpy.percentile(stdList[key], [75, 25])
+            iqr = q75 - q25
+            upperLimit = q75+1.5*iqr
+            supralimit = q75+3*iqr
+            ultraLimit = q75+4.5*iqr
+            print 'lowLimit ' + str(upperLimit)
+            print 'mediumlimit ' + str(supralimit)
+            print 'Highlimit ' + str(ultraLimit)
 
+    medc =medcouple(stdDataSet)
+    print 'medcouple ' +str(medc)
 
-            stdev.append(numpy.std(value))
-        elif (max(value) - min(value)) > 40:
-            stdev.append(numpy.std(value))
+    q75, q25 = numpy.percentile(stdDataSet, [75, 25])
+    standard = numpy.std(stdDataSet)
+    iqr = q75 - q25
+    supralimit = q75 + 3* math.exp(4*medc)*iqr
+    lowerlimit = q25 - 3*math.exp(3.5*medc)*iqr
 
+    #graph.histogram(stdDataSet)
+    #graph.boxplot(stdDataSet)
 
-    average = numpy.mean(stdev)
-    median = numpy.median(stdev)
-    print average
-    print median
+    print 'skewwed upperlimit ' + str(supralimit)
+    print 'skewwed lowerlimit ' + str(lowerlimit)
+    print 'data ' +str(tot)
+
 
 
 # Calculate the average delay between requested and received block
-def block_delay_mean(date):
-    delayResults = open("BlockDelayResults.txt","r+")
+def block_delay_mean(date,honeyNodeLocation):
+    delayResults = open(honeyNodeLocation+"/BlockDelayResults.txt","r+")
     delays = []
     if date == 'x':
         for line in delayResults:
@@ -213,8 +243,8 @@ def block_delay_mean(date):
 
 
 # Calculate the average delay between requested and received transaction
-def tx_delay_mean(date):
-    delayResults = open("TransactionDelayResults.txt", "r+")
+def tx_delay_mean(date, honeyNodeLocation):
+    delayResults = open(honeyNodeLocation+"/TransactionDelayResults.txt", "r+")
     delays = []
     if date == 'x':
         for line in delayResults:
@@ -233,3 +263,37 @@ def tx_delay_mean(date):
         else:
             mean = sum(delays, datetime.timedelta()) / len(delays)
     return mean
+
+
+def get_getaddr_list_format(honeyNodeLocation):
+    GETADDRres = honeyNodeLocation+'/GETADDRResults.txt'
+    getaddrResults = open(GETADDRres, 'r+')
+    x = []
+    y = []
+    dict = {}
+    for line in getaddrResults:
+        if 'received:'in line:
+            date = parse.get_date(line)
+            if date not in dict.keys():
+                dict[date] = 1
+            else:
+                i = dict[date]
+                i = i + 1
+                dict[date] = i
+
+    for key in sorted(dict):
+        x.append(key)
+        y.append(dict[key])
+    return [x,y]
+
+def get_conn_nb_list_format(honeyNodeLocation):
+    with open(honeyNodeLocation+'/Dict/dictConnectionNb.txt', 'r') as jsonNb:
+        dictNbPeers = json.load(jsonNb)
+    x=[]
+    y=[]
+    for key in sorted(dictNbPeers):
+        x.append(key)
+        y.append(dictNbPeers[key])
+    print x
+    return [x,y]
+

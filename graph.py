@@ -9,26 +9,34 @@
 Plot processed data and statistics
 
 """
+import math
 
 import plotly
 import pickle
 import datetime
 import numpy
 import json
+import requests
 
-def AS_graph(time):
+def AS_graph(currenttime):
+    """
+
+    :param time:
+    :return:
+    """
+    time = 1479556800
+    iterations = math.ceil((currenttime - time)/86400)
 
     plotly.tools.set_credentials_file(username='ASgraphs', api_key='tygulSRh6C3QKYIrlgsg')
 
     dictData = {}
     data =[]
     xas=[]
-    iterations = 187
 
     for i in range(1,iterations,1):
         date = datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d')
         try:
-            with open('AS_snaps/AS_nb_dict_snapshot_'+date+'.txt', 'rb') as handle:
+            with open('AS_snaps/AS_nb_dict_snapshot_'+date+'.pickle', 'rb') as handle:
                 dict = pickle.load(handle)
         except IOError,e:
             print e
@@ -51,7 +59,7 @@ def AS_graph(time):
                 for j in range(1,i):
                     dictData[key].append(0)
                 dictData[key].append(value)
-
+    geckoboard = []
     for key in dictData:
         value = dictData[key]
         while len(value) < 80:
@@ -60,33 +68,46 @@ def AS_graph(time):
         # Select only relevant AS
         if numpy.mean(value) > 100:
             data.append(plotly.graph_objs.Scatter(x=xas, y=value, name=key))
-
-        elif pertinance > 50:
+            geckoboard.append({"name": key, "data": value})
+        elif pertinance > 60:
             data.append(plotly.graph_objs.Scatter(x=xas, y=value, name=key))
-
+            geckoboard.append({"name": key, "data": value})
     plotly.plotly.plot(data, filename='relevant-AS-feb-april')
 
-def organisation_graph(time,index):
+    x = []
+    for label in xas:
+        x.append(label.isoformat() + "+02:00")
+
+    widgetKey = '168161-ecffd3a0-1df9-0135-e4ce-22000aedfc71'
+    url = 'https://push.geckoboard.com/v1/send/' + widgetKey
+
+    requests.post(url, json={'api_key': '7b2085513d88b615146903afb360e785', 'data': {
+        "x_axis": {
+            "type": "datetime",
+            "labels": x
+        },
+        "series": geckoboard
+    }})
+
+def organisation_graph(time):
 
     plotly.tools.set_credentials_file(username='ASgraphs', api_key='tygulSRh6C3QKYIrlgsg')
 
     dictData = {}
     data =[]
     xas=[]
-    iterations = index/2
+    iterations = 187
 
     for i in range(1,iterations,1):
         date = datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d')
-        index = index -2
         try:
-            with open('Provider_nb_dict_snapshot_'+date+'_'+str(index)+'.pickle', 'rb') as handle:
-                dict = pickle.load(handle)
-        except IOError,e:
-            time = time + 86400
-            date = datetime.datetime.fromtimestamp(time).strftime('%Y-%m-%d')
-            with open('Provider_nb_dict_snapshot_'+date+'_'+str(index)+'.pickle', 'rb') as handle:
+            with open('Organization_snaps/Organization_nb_dict_snapshot_'+date+'.pickle', 'rb') as handle:
                 dict = pickle.load(handle)
 
+        except IOError,e:
+            print e
+
+        time = time + 86400
         print str(i*100/iterations) + '%'
         xas.append(datetime.datetime.fromtimestamp(time))
 
@@ -105,6 +126,7 @@ def organisation_graph(time,index):
                     dictData[key].append(0)
                 dictData[key].append(value)
 
+    geckoboard =[]
     for key in dictData:
         value = dictData[key]
         while len(value) < 80:
@@ -113,12 +135,31 @@ def organisation_graph(time,index):
         # Select only relevant AS
         if numpy.mean(value) > 100:
             data.append(plotly.graph_objs.Scatter(x=xas, y=value, name=key))
+            geckoboard.append({"name":key,"data":value})
 
-        elif pertinance > 50:
+        elif pertinance > 60:
             data.append(plotly.graph_objs.Scatter(x=xas, y=value, name=key))
+            geckoboard.append({"name": key, "data": value})
 
     plotly.plotly.plot(data, filename='relevant-Providers-feb-april')
 
+
+    x = []
+    for label in xas:
+        x.append(label.isoformat()+"+02:00")
+
+    widgetKey = '168161-744823b0-1df7-0135-cfdc-22000bb5c791'
+    url = 'https://push.geckoboard.com/v1/send/' + widgetKey
+
+
+
+    requests.post(url, json={'api_key': '7b2085513d88b615146903afb360e785', 'data': {
+      "x_axis": {
+          "type": "datetime",
+          "labels": x
+      },
+      "series": geckoboard
+    }})
 
 def RTT_graph(date,filename):
 
@@ -203,3 +244,7 @@ def connections_graph():
     fig = plotly.graph_objs.Figure(data=data, layout=layout)
 
     plotly.plotly.plot(fig, filename='Active peers intime')
+
+
+AS_graph(1479556800)
+organisation_graph(1479556800)

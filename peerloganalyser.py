@@ -24,16 +24,22 @@ import sys
 import datetime
 import pickle
 import jsonprocess
-import stats
+import statistics
 
 
-def init(timestamp):
-    date = datetime.datetime.fromtimestamp(timestamp).strftime("%Y_%m_%d")
-    log = 'logpeerinfo_'+date+'.txt'
+def init():
+    """
+    Prepares the log file to be processed by converting to a valid json format
+
+    :param timestamp:
+    :return:
+    """
+    #date = datetime.datetime.fromtimestamp(timestamp).strftime("%Y_%m_%d")
+    #log = 'logpeerinfo_'+date+'.txt'
+    log = 'logpeerinfo.txt'
     peerlog = open(log, 'r+')
 
-    # Prepare the log file to be processed
-    # adjust until valid json format
+
     peerlog_json = ["["]
     pattern = re.compile("(}{)")
     for line in peerlog:
@@ -46,12 +52,17 @@ def init(timestamp):
     peerlog_json.append("]")
 
     for line in peerlog_json:
-        with open("logpeerjson"+date+".txt", "a") as out:
+        #with open("logpeerjson"+date+".txt", "a") as out:
+        with open("logpeerjson.txt", "a") as out:
             out.write("".join(line))
 
 def json_parse(log):
+    """
 
-    # PARSE connection times
+    :param log:
+    :return:
+    """
+
     date = log[0]['logday']
 
     dictConntime = {}

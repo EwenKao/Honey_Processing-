@@ -12,14 +12,13 @@ This file process the debug.log file
 import datetime
 import json
 import parse
-import ipaddress
 import collections
 import random
 
 
 # Check for unsolicited ADDR msg
-def message_process(buffer,dictADDR,dictUnsolicited):
-    outputADDR = open("unsolicitedADDRmsgResult.txt","a")
+def message_process(buffer,dictADDR,dictUnsolicited,honeyNodeLocation):
+    outputADDR = open(honeyNodeLocation+"/unsolicitedADDRmsgResult.txt","a")
     for line in buffer:
         if "sending" in line:
             id = parse.get_peer_id(line)
@@ -61,10 +60,11 @@ def message_process(buffer,dictADDR,dictUnsolicited):
                 del dictADDR[id]
 
 
-def connection_monitor(buffer, dictPeer,dictNbPeer,currentNb,totalNb):
+def connection_monitor(buffer, dictPeer,dictNbPeer,currentNb,totalNb,honeyNodeLocation):
     reason = 'x'
     feelerIP = 'x'
     feelerPort = 'x'
+    outputPeers = open(honeyNodeLocation+"/connectedNbPeers.txt", "a")
     for line in buffer:
         if "Added connection" in line:
             id  = parse.get_peer_id(line)
@@ -72,7 +72,7 @@ def connection_monitor(buffer, dictPeer,dictNbPeer,currentNb,totalNb):
             if id == '0':
                 # Reset peerList
                 if dictPeer:
-                    for peerid in dictPeer:
+                    for peerid in dictPeer.keys():
                         ip = dictPeer[peerid]['ip']
                         connectiontime = dictPeer[peerid]['conntime']
                         deconnectiontime = parse.get_time(line)
@@ -80,18 +80,17 @@ def connection_monitor(buffer, dictPeer,dictNbPeer,currentNb,totalNb):
                         enter = datetime.datetime.strptime(connectiontime, '%H:%M:%S')
                         exit = datetime.datetime.strptime(deconnectiontime, '%H:%M:%S')
                         delta = exit - enter
-                        outputConnection = open("ConnectionResults.txt", "a")
+                        outputConnection = open(honeyNodeLocation+"/ConnectionResults.txt", "a")
                         outputConnection.write(deconnectionday + " " + deconnectiontime + " peer=" + peerid + " : " + ip + " connection time:" + "".join(str(delta)) + " reason: disconnection proper node\n")
 
                 dictPeer = {}
-
                 currentNb=0
 
                 # Monitor restarting of node
-                outputRestart = open("RestartingNode.txt", "a")
+                outputRestart = open(honeyNodeLocation+"/RestartingNode.txt", "a")
                 restartingTime = parse.get_time(line)
                 restartingDay = parse.get_date(line)
-                outputRestart.write('Node restarts at : '+"".join(restartingDay)+" ".join(restartingTime)+"\n")
+                outputRestart.write('Node restarts at : '+"".join(restartingDay)+" "+"".join(restartingTime)+"\n")
 
             # If new connection with a peer is made
             version, ip, port = parse.get_ip_port(line)
@@ -105,11 +104,11 @@ def connection_monitor(buffer, dictPeer,dictNbPeer,currentNb,totalNb):
                 dictPeer[id]['type'] = "feeler"
             else:
                 dictPeer[id]['type'] = "peer"
-                connectiontime = parse.get_date(line) + " " + parse.get_time(line)
+                fulltime = datetime.datetime.strptime(parse.get_date(line) + "-" + parse.get_time(line), "%Y-%m-%d-%H:%M:%S")
+                formattedTime = fulltime.isoformat()+"+02:00"
                 currentNb +=1
-                print currentNb
                 totalNb +=1
-                dictNbPeer[connectiontime] = currentNb
+                dictNbPeer[formattedTime] = currentNb
 
 
         elif "Making feeler connection" in line:
@@ -174,24 +173,24 @@ def connection_monitor(buffer, dictPeer,dictNbPeer,currentNb,totalNb):
                     stop = datetime.datetime.strptime(deconnectionday, '%Y-%m-%d')
                     days = stop - start
                     delta = delta + days
-                outputConnection = open("ConnectionResults.txt", "a")
+                outputConnection = open(honeyNodeLocation+"/ConnectionResults.txt", "a")
                 outputConnection.write(deconnectionday+" "+deconnectiontime+" peer="+id+" : "+ip+ " connection time:"+"".join(str(delta))+ " reason:" + reason +"\n")
                 if dictPeer[id]['type'] == "peer":
-                    deconnection = deconnectionday + " " + deconnectiontime
+                    fulltime = datetime.datetime.strptime(deconnectionday + "-" + deconnectiontime,"%Y-%m-%d-%H:%M:%S")
+                    formattedTime = fulltime.isoformat()+"+02:00"
                     currentNb -=1
-                    print currentNb
-                    dictNbPeer[deconnection] = currentNb
-                dictPeer.pop(id)
+                    dictNbPeer[formattedTime] = currentNb
+                    dictPeer.pop(id)
                 reason = 'x'
                 feelerIP = 'x'
                 feelerPort = 'x'
-    with open('currentNb.txt', 'w') as cnb:
+    with open(honeyNodeLocation+'/currentNb.txt', 'w') as cnb:
         json.dump(currentNb, cnb)
-    with open('totalNb.txt', 'w') as cnb:
+    with open(honeyNodeLocation+'/totalNb.txt', 'w') as cnb:
         json.dump(totalNb, cnb)
 
             #.replace(" -1 day, ", ""))
-def track_block_propagation(buffer,dict,dictPeer):
+def track_block_propagation(buffer,dict,dictPeer,honeyNodeLocation):
     inactivePeer = "-1"
     inactive = False
     for line in buffer:
@@ -220,11 +219,11 @@ def track_block_propagation(buffer,dict,dictPeer):
                     delta = received - requested
                     if delta < datetime.timedelta(minutes=0):
                         delta = delta + datetime.timedelta(days=1)
-                    outputBlockDelay = open("BlockDelayResults.txt", "a")
+                    outputBlockDelay = open(honeyNodeLocation+"/BlockDelayResults.txt", "a")
                     outputBlockDelay.write(date +" "+ time +" Peer:" + id + " Block delay:" + "".join(str(delta).replace(" -1 day, ", "")) + " \n")
                     del dict[id][hash]
                 else:
-                    outputUnsolicitedBlock = open("UnsolicitedBlockHash.txt", "a")
+                    outputUnsolicitedBlock = open(honeyNodeLocation+"/UnsolicitedBlockHash.txt", "a")
                     outputUnsolicitedBlock.write(date + " Received block from peer: "+id+" with hash: "+hash+" is not coming from a recent getdata \n")
 
         elif 'Inactivity' in line:
@@ -233,6 +232,7 @@ def track_block_propagation(buffer,dict,dictPeer):
         elif 'disconnecting peer' in line:
             id = parse.get_peer_id(line)
             currentTime = parse.get_time(line)
+            date = parse.get_date(line)
             received = datetime.datetime.strptime(currentTime, '%H:%M:%S')
             if id in dict:
                 if (id == inactivePeer): # inactive == True: # replace by:  if (id == inactivePeer): for logs after 25 of April
@@ -243,14 +243,14 @@ def track_block_propagation(buffer,dict,dictPeer):
                         if delta < datetime.timedelta(minutes=0):
                             delta = delta + datetime.timedelta(days=1)
                         if delta > datetime.timedelta(minutes=20):
-                            outputBlockDelay = open("BlockTimeOuts.txt", "a")
-                            outputBlockDelay.write(date + " " + time + " Peer:" + id + " didn't response to block:" + hash + " \n")
+                            outputBlockDelay = open(honeyNodeLocation+"/BlockTimeOuts.txt", "a")
+                            outputBlockDelay.write(date + " " + currentTime + " Peer:" + id + " didn't response to block:" + hash + " \n")
                 del dict[id]
 
         if 'socket sending timeout:' in line or 'socket receive timeout:' in line: # To be removed for logs after 25 of April
             inactive = True
 
-def track_tx_propagation(buffer, dict, dictPeer):
+def track_tx_propagation(buffer, dict, dictPeer,honeyNodeLocation):
     inactivePeer = "-1"
     inactive = False
     for line in buffer:
@@ -278,11 +278,11 @@ def track_tx_propagation(buffer, dict, dictPeer):
                     delta = received - requested
                     if delta < datetime.timedelta(minutes=0):
                         delta = delta + datetime.timedelta(days=1)
-                    outputTransactionDelay = open("TransactionDelayResults.txt", "a")
+                    outputTransactionDelay = open(honeyNodeLocation+"/TransactionDelayResults.txt", "a")
                     outputTransactionDelay.write(date + " " + time + " transaction delay from peer:" + id + " delay:" + "".join(str(delta).replace(" -1 day, ", "")) + " \n")
                     del dict[id][hash]
                 else:
-                    outputUnsolicitedBlock = open("UnsolicitedTransactionHash.txt", "a")
+                    outputUnsolicitedBlock = open(honeyNodeLocation+"/UnsolicitedTransactionHash.txt", "a")
                     outputUnsolicitedBlock.write(date + " Received transaction from peer: " + id + " with hash: " + hash + " is not coming from a recent getdata \n")
 
         elif 'Inactivity' in line:
@@ -291,6 +291,7 @@ def track_tx_propagation(buffer, dict, dictPeer):
         elif 'disconnecting peer' in line:
             id = parse.get_peer_id(line)
             currentTime = parse.get_time(line)
+            currentDate = parse.get_date(line)
             received = datetime.datetime.strptime(currentTime, '%H:%M:%S')
             if id in dict:
                 if inactive == True:  # replace by:  if (id == inactivePeer): for logs after 23 of April
@@ -302,8 +303,8 @@ def track_tx_propagation(buffer, dict, dictPeer):
                         if delta < datetime.timedelta(minutes=0):
                             delta = delta + datetime.timedelta(days=1)
                         if delta > datetime.timedelta(minutes=20):
-                            outputBlockDelay = open("TxTimeOuts.txt", "a")
-                            outputBlockDelay.write(date + " " + time + " Peer:" + id + " didn't response to tx:" + hash + " \n")
+                            outputBlockDelay = open(honeyNodeLocation+"/TxTimeOuts.txt", "a")
+                            outputBlockDelay.write(currentDate + " " + currentTime + " Peer:" + id + " didn't response to tx:" + hash + " \n")
                 del dict[id]
 
         if 'socket sending timeout:' in line or 'socket receive timeout:' in line:  # To be removed for logs after 23 of April
@@ -325,7 +326,37 @@ def version_check(buffer,dict):
         dict[id] = version
 
 
+def get_addr_provenance(buffer,honeyNodeLocation):
+    try:
+        with open(honeyNodeLocation+'/Dict/activePeers.txt', 'r') as jsonPeer:
+            activePeers=json.load(jsonPeer)
+    except IOError:
+        activePeers = {}
+    outputGETADDR = open(honeyNodeLocation+"/GETADDRResults.txt", "a")
+    for line in buffer:
+        if "Added" in line:
+            id = parse.get_peer_id(line)
+            version, ip, port = parse.get_ip_port(line)
+            addr = ip+":"+port
+            activePeers[id] = addr
+        if "disconnecting peer" in line:
+            id = parse.get_peer_id(line)
+            if id in activePeers.keys():
+                activePeers.pop(id)
+        if 'received: getaddr' in line or '"getaddr"' in line:
+            v,ip,id = parse.get_ip_port(line)
+            if ip:
+                outputGETADDR.write("".join(line))
+            else:
+                id = parse.get_peer_id(line)
+                addr = activePeers[id]
+                line = line.strip('\n')
+                outputGETADDR.write("".join(line)+" IP:Port="+"".join(addr)+"\n")
 
+    with open(honeyNodeLocation+'/Dict/activePeers.txt', 'w') as outfile:
+        json.dump(activePeers, outfile)
+
+"""
 # look for AS6719 KNOPP : 188.65.214
 def ip_block_monitor(buffer,dict):
     for line in buffer:
@@ -351,3 +382,4 @@ def ip_block_monitor(buffer,dict):
     for ipblock in dict:
         outputIPBlock.write("IP block: " + str(ipblock) + " # ip: " + str(dict[ipblock]) + " \n")
 
+"""
