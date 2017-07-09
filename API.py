@@ -18,9 +18,13 @@ import re
 import datetime
 import pickle
 
-# Check the correctness of the given IP:PORT combination
-# with the API of BITNODES.21
 def check_port(ip, port):
+    """
+    Check the correctness of the given IP:Port combination with the API of BITNODES.21
+    :param ip: IP address of the node to check
+    :param port: port of the node to check
+    :return: If an IP:Port combination doesn't pass the validity check, the reason is logged in IPPortResults.txt file
+    """
     ## Retrieve most two recent snapshots from BITNODES.21
     try:
         json_request = urllib2.urlopen('https://bitnodes.21.co/api/v1/snapshots/')
@@ -75,14 +79,28 @@ def check_port(ip, port):
         outputIPPort.write(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') + " IP address " + ip + " is not listed in the last snapshot of bitnodes.21 \n")
 
 
-# Extract from the given snapshot:
-# the number of nodes for each AS and save in an dictionary
-# the number of nodes for each Provider and save in an dictionary
-def parse_snapshot(snapshot,timestamp):
+def parse_snapshot(snapshot,timestamp,directory):
+    """
+    Extract from the given snapshot:
+        - the number of nodes for each AS and saved in a dictionary format in AS_nb_dict_snapshot_date.pickle file
+        - the list of IP:Ports for each AS and saved in a dictionary foramt in AS_ip_dict_snapshot_date.pickle file
+        - the number of nodes for each organization and saved in a dictionary format in Organization_nb_dict_snapshot_date.pickle file
+        - the list of IP:Ports for each organization and saved in a dictionary foramt in Organization_ip_dict_snapshot_date.pickle file
+        - the number of nodes for each protocol version and save in an dictionary
+        - a dictionary mapping for each AS number, the name of the organisation holding the AS
+
+    :param snapshot: a snapshot from bitnodes.21.co
+    :param timestamp: the timestamp in a unix format of the snapshot
+    :param directory: the directory where the processed snapshot has to be saved
+    :return:
+    """
+    hdr = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.11 (KHTML, like Gecko) Chrome/23.0.1271.64 Safari/537.11'}
+    req = urllib2.Request(snapshot, headers=hdr)
 
     try:
-        json_data = urllib2.urlopen('' + snapshot + '')
+        json_data = urllib2.urlopen(req)
     except urllib2.URLError, e:
+        print e.fp.read()
         return
 
     data = json.load(json_data)
@@ -92,20 +110,21 @@ def parse_snapshot(snapshot,timestamp):
     dictASIp = {}
     dictOrganizationIp = {}
     dictVersionNb = {}
+    dictASOrganisationMap ={}
+    timestamps = []
 
     for i in IPlist:
         version = data['nodes'][i][1]
         ASnumber =  data['nodes'][i][11]
         organization = data['nodes'][i][12]
-        print version +"\n"
 
         # Update AS dictionary
         if ASnumber not in dictASNb:
             dictASNb[ASnumber] = 1
         else:
-            i = dictASNb[ASnumber]
-            i = i+1
-            dictASNb[ASnumber] = i
+            j = dictASNb[ASnumber]
+            j = j+1
+            dictASNb[ASnumber] = j
 
         if ASnumber not in dictASIp:
             dictASIp[ASnumber] = []
@@ -113,41 +132,56 @@ def parse_snapshot(snapshot,timestamp):
         else:
             dictASIp[ASnumber].append(i)
 
+
         # Update provider dictionary
         if organization not in dictOrganizationNb:
             dictOrganizationNb[organization] = 1
         else:
-            i = dictOrganizationNb[organization]
-            i = i + 1
-            dictOrganizationNb[organization] = i
+            j = dictOrganizationNb[organization]
+            j = j + 1
+            dictOrganizationNb[organization] = j
 
-        if ASnumber not in dictOrganizationIp:
+        if organization not in dictOrganizationIp:
             dictOrganizationIp[organization] = []
             dictOrganizationIp[organization].append(i)
         else:
             dictOrganizationIp[organization].append(i)
 
+        if organization not in dictASOrganisationMap:
+            dictASOrganisationMap[organization] = []
+            dictASOrganisationMap[organization].append(ASnumber)
+        else:
+            if ASnumber not in dictASOrganisationMap[organization]:
+                dictASOrganisationMap[organization].append(ASnumber)
+
+
         # Update Version dictionary
         if version not in dictVersionNb:
             dictVersionNb[version] = 1
         else:
-            i = dictVersionNb[version]
-            i = i+1
-            dictVersionNb[version] = i
+            j = dictVersionNb[version]
+            j = j+1
+            dictVersionNb[version] = j
 
-    date = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
+    date = datetime.datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d_%H_%M_%S')
+    timestamps.append(timestamp)
 
-    with open('AS_snaps/AS_nb_dict_snapshot_'+date+'.pickle', 'a') as ASoutput:
+    with open(directory+'/AS_snaps/AS_nb_dict_snapshot_'+date+'.pickle', 'a') as ASoutput:
         pickle.dump(dictASNb, ASoutput, protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('AS_snaps/AS_ip_dict_snapshot_'+date+'.pickle', 'a') as ASipoutput:
+    with open(directory+'/AS_snaps/AS_ip_dict_snapshot_'+date+'.pickle', 'a') as ASipoutput:
         pickle.dump(dictASIp, ASipoutput,  protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('Organization_snaps/Organization_nb_dict_snapshot_'+date+'.pickle', 'a') as Organizationoutput:
+    with open(directory+'/Organization_snaps/Organization_nb_dict_snapshot_'+date+'.pickle', 'a') as Organizationoutput:
         pickle.dump(dictOrganizationNb, Organizationoutput,  protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('Organization_snaps/Organization_ip_dict_snapshot_'+date+'.pickle', 'a') as Organizationipoutput:
+    with open(directory+'/Organization_snaps/Organization_ip_dict_snapshot_'+date+'.pickle', 'a') as Organizationipoutput:
         pickle.dump(dictOrganizationIp, Organizationipoutput,  protocol=pickle.HIGHEST_PROTOCOL)
 
-    with open('Protocol/Protocol_nb_dict_snapshot_'+date+'.pickle', 'a') as versionoutput:
+    with open(directory+'/Protocol/Protocol_nb_dict_snapshot_'+date+'.pickle', 'a') as versionoutput:
         pickle.dump(dictVersionNb, versionoutput,  protocol=pickle.HIGHEST_PROTOCOL)
+
+    with open(directory+'/Organization_AS_map/Organization_AS_map_'+date+'.pickle', 'a') as mapoutput:
+        pickle.dump(dictASOrganisationMap, mapoutput,  protocol=pickle.HIGHEST_PROTOCOL)
+
+

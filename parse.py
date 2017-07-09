@@ -18,13 +18,18 @@ List of functions:
     - get_connection_time()
     - get_delay()
     - get_deconnection_reason()
+    - get_inactivity_reason()
+    - get_version()
 
 """
 
 import re
 
-# Returns the time in format hh:mm:ss of when the log line was written
 def get_time(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the time in format hh:mm:ss of when the log line was written
+    """
     # group 1 = hh:mm:ss
     pattern = re.compile(".*([0-2][0-9]:[0-5][0-9]:[0-5][0-9])")
     result = re.search(pattern,line)
@@ -34,8 +39,11 @@ def get_time(line):
     else:
         return None
 
-# Returns the date in format yyyy-mm-dd of when the log line was written
 def get_date(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the date in format yyyy-mm-dd of when the log line was written
+    """
     # group 1 = yyyy-mm-dd
     pattern = re.compile("([0-9]{4}-[0-1][0-9]-[0-3][0-9])")
     result = re.search(pattern, line)
@@ -45,9 +53,12 @@ def get_date(line):
     else:
         return None
 
-# Returns the IP-address, the port and the version (IPv4 or IPv6)
-# found in a given log line
+
 def get_ip_port(line):
+    """
+    :param line: the log-line to be parsed
+    :return: returns the IP-address, the port and the version (IPv4 or IPv6) found in a given log line
+    """
     # group 1 = [IPv6]      group 6 = IPv4
     # group 2 = IPv6        group 8 = port
     # group 5 = port
@@ -67,8 +78,11 @@ def get_ip_port(line):
     else:
         return [None, None, None]
 
-# Returns the ID of the peer foud in a give log line
 def get_peer_id(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the ID of the peer foud in a give log line
+    """
     # group 1 = peer=id     group 3 = Peer=id`
     # group 2 = id          group 4 = id
     pattern= re.compile(".*(peer=([^\s]+))|.*(Peer=([^\s]+))")
@@ -85,8 +99,11 @@ def get_peer_id(line):
     else:
         return None
 
-# Returns the logged size of the message that has been send or received
 def get_size(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the logged size of the message that has been send or received
+    """
     # group 1 = (size bytes)    group 2 size
     pattern = re.compile(".*(\(([^\s]+) bytes\))")
 
@@ -97,9 +114,11 @@ def get_size(line):
     else:
         return None
 
-# Returns the 64 bytes message digest of a SHA256 computation
-# found in a given log line
 def get_hash(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the 64 bytes message digest of a SHA256 computation found in a given log line
+    """
     # group 1 = hash
     pattern = re.compile(".*([a-f0-9]{64})")
 
@@ -110,10 +129,14 @@ def get_hash(line):
     else:
         return None
 
-# Returns the connection duration of the peers
 def get_connection_time(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the connection duration of the peers
+    """
     # group 1 = D days, HH:MM:SS
-    #pattern = re.compile(".*time:(.*[0-9]{1,2}:[0-5][0-9]:[0-5][0-9])")
+    # pattern = re.compile(".*time:(.*[0-9]{1,2}:[0-5][0-9]:[0-5][0-9])")
+
     # group 1 = D day, HH:MM:SS     group 6 = HH:MM:SS      group 10 = D days, HH:MM:SS
     # group 2 = D                   group 7 = HH            group 11 = D
     # group 3 = HH                  group 8 = MM            group 12 = HH
@@ -145,6 +168,10 @@ def get_connection_time(line):
         return [None,None,None,None]
 
 def get_delay(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the delay in format [HH, MM, SS]
+    """
     # group 1 = HH      group 2 = MM        group 3 = SS
     pattern = re.compile(".*delay:([0-9]{1}):([0-5][0-9]):([0-5][0-9])")
 
@@ -158,6 +185,10 @@ def get_delay(line):
         return [None, None, None]
 
 def get_deconnection_reason(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the reason for a disconnected peer
+    """
     # group 1 = reason
     pattern = re.compile(".*reason:(. *)")
 
@@ -169,6 +200,10 @@ def get_deconnection_reason(line):
         return None
 
 def get_inactivity_reason(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the reason for an inactive peer
+    """
     pattern = re.compile(".*Inactivity,(.*)from")
 
     result = re.search(pattern, line)
@@ -179,6 +214,10 @@ def get_inactivity_reason(line):
         return None
 
 def get_version(line):
+    """
+    :param line: the log-line to be parsed
+    :return: the software version of a peer
+    """
     pattern = re.compile(".*Satoshi:(.*)\/")
     result = re.search(pattern,line)
     if result:
