@@ -23,7 +23,7 @@ import numpy
 # Update general info about the Bitcoin network
 def display_current_date(value,honeynodeID):
     """
-    Display the date of the day when the processed data has been logged 
+    Display the date of the day when the processed data has been logged
     :param value: current date
     :param honeynodeID: the ID of the honeynode the data is coming from
     :return:
